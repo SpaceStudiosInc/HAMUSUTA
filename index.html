@@ -51,7 +51,8 @@ html, body {
   display:flex; flex-direction:column; gap:4px; z-index:5;
 }
 .bar-row { display:flex; align-items:center; gap:5px; }
-.bar-lbl { font-size:clamp(5px,1.1vw,8px); color:#2a4a2a; width:clamp(14px,3vw,22px); }
+/* FIX: was clamp(14px,3vw,22px) — too narrow for "HUNGER" */
+.bar-lbl { font-size:clamp(5px,1.1vw,8px); color:#2a4a2a; width:clamp(52px,9vw,70px); flex-shrink:0; white-space:nowrap; }
 .bar-track { flex:1; height:clamp(4px,1vh,8px); background:#091409; border:1px solid #1a3a1a; }
 .bar-fill  { height:100%; background:#3a8a3a; transition:width .4s; }
 .bar-fill.y { background:#a06010; }
@@ -388,7 +389,6 @@ function loadState() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const loaded = JSON.parse(raw);
-    // merge to ensure new keys exist
     S = { ...freshState(), ...loaded };
     const elapsed = Math.min((Date.now()-S.lastSaveTime)/60000, 72*60);
     if (elapsed>0) applyDecay(elapsed);
@@ -398,7 +398,7 @@ function loadState() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DECAY  (hunger ~22h, happy ~28h, energy ~36h)
+// DECAY
 // ═══════════════════════════════════════════════════════════════════════════
 const DECAY = { hunger:0.0758, happy:0.0595, energy:0.0463 };
 function applyDecay(mins) {
@@ -438,21 +438,17 @@ function drawRoom() {
   const bwW=BR-BL, bwH=BB-BT;
   const lw = Math.max(1, H/250);
 
-  // Ceiling
   cx.fillStyle=R.ceiling;
   cx.beginPath(); cx.moveTo(0,0); cx.lineTo(W,0); cx.lineTo(BR,BT); cx.lineTo(BL,BT); cx.closePath(); cx.fill();
 
-  // Side walls
   cx.fillStyle=R.wallL;
   cx.beginPath(); cx.moveTo(0,0); cx.lineTo(BL,BT); cx.lineTo(BL,BB); cx.lineTo(0,FF); cx.closePath(); cx.fill();
   cx.fillStyle=R.wallR;
   cx.beginPath(); cx.moveTo(W,0); cx.lineTo(BR,BT); cx.lineTo(BR,BB); cx.lineTo(W,FF); cx.closePath(); cx.fill();
 
-  // Back wall
   cx.fillStyle=R.back; cx.fillRect(BL,BT,bwW,bwH);
   for (let y=BT+bwH*0.15; y<BB-2; y+=bwH*0.12) { cx.fillStyle=R.backLine; cx.fillRect(BL,y,bwW,1); }
 
-  // Wheel (back wall center)
   const wx=W/2, wy=BT+bwH*0.55, wr=bwH*0.44;
   cx.strokeStyle=R.wheel; cx.lineWidth=Math.max(1.5,H/200);
   cx.beginPath(); cx.arc(wx,wy,wr,0,Math.PI*2); cx.stroke();
@@ -464,7 +460,6 @@ function drawRoom() {
   }
   cx.fillStyle=R.wheel; cx.beginPath(); cx.arc(wx,wy,Math.max(2,H/80),0,Math.PI*2); cx.fill();
 
-  // Water bottle
   const bx=BL+bwW*0.84, by=BT+bwH*0.18, bw=bwW*0.05, bh=bwH*0.55;
   cx.fillStyle=R.furniture; cx.fillRect(bx,by,bw,bh);
   cx.fillStyle=R.back; cx.fillRect(bx+1,by+bh*0.45,bw-2,bh*0.5);
@@ -472,17 +467,14 @@ function drawRoom() {
   cx.strokeStyle=R.edges; cx.lineWidth=0.8;
   cx.strokeRect(bx,by,bw,bh); cx.strokeRect(bx+bw*0.25,by-bh*0.2,bw*0.5,bh*0.22);
 
-  // Food dish
   const fdx=BL+bwW*0.13, fdy=BB-2, fdw=bwW*0.09, fdh=bwH*0.14;
   cx.fillStyle=R.furniture;
   cx.beginPath(); cx.ellipse(fdx,fdy,fdw,fdh,0,0,Math.PI); cx.fill();
   cx.strokeStyle=R.edges; cx.lineWidth=0.8;
   cx.beginPath(); cx.ellipse(fdx,fdy,fdw,fdh,0,0,Math.PI*2); cx.stroke();
-  // pellets use hamster body color
   cx.fillStyle=hamPal().body;
   for(let i=0;i<4;i++) cx.fillRect(fdx-fdw*0.55+i*fdw*0.38, fdy-fdh*0.55, fdw*0.25, fdh*0.45);
 
-  // Mini house
   if (S.items.house) {
     const hx=BL+bwW*0.65, hy=BB-2, hw=bwW*0.12, hh=bwH*0.7;
     cx.fillStyle=R.furniture;
@@ -496,7 +488,6 @@ function drawRoom() {
     cx.strokeStyle=R.edges; cx.lineWidth=0.5; cx.strokeRect(hx-hw*0.42,hy-hh*0.35,hw*0.22,hh*0.16);
   }
 
-  // Bed on floor
   if (S.items.bed) {
     const bp=toScreen(0.11,0.9), bs=bp.s*H*0.09;
     cx.save(); cx.translate(bp.x,bp.y);
@@ -508,14 +499,12 @@ function drawRoom() {
     cx.restore();
   }
 
-  // Floor strips
   for(let i=0;i<10;i++){
     const z1=i/10,z2=(i+1)/10;
     const p0=toScreen(0,z1),p1=toScreen(1,z1),p2=toScreen(1,z2),p3=toScreen(0,z2);
     cx.fillStyle=i%2===0?R.floorA:R.floorB;
     cx.beginPath(); cx.moveTo(p0.x,p0.y); cx.lineTo(p1.x,p1.y); cx.lineTo(p2.x,p2.y); cx.lineTo(p3.x,p3.y); cx.closePath(); cx.fill();
   }
-  // Floor grid
   cx.strokeStyle=R.grid; cx.lineWidth=0.7;
   for(let i=0;i<=10;i++){
     const b=toScreen(i/10,0),f=toScreen(i/10,1);
@@ -526,7 +515,6 @@ function drawRoom() {
     cx.beginPath(); cx.moveTo(L.x,L.y); cx.lineTo(R2.x,R2.y); cx.stroke();
   });
 
-  // Room structure lines
   cx.strokeStyle=R.edges; cx.lineWidth=lw*1.2;
   cx.beginPath();
   cx.moveTo(0,FF); cx.lineTo(BL,BB); cx.lineTo(BR,BB); cx.lineTo(W,FF);
@@ -603,7 +591,6 @@ function drawHam() {
   const PX=px(), ham=makeHam(S.alive,S.sleeping,S.sick);
   const sw=11*PX, sh=11*PX;
 
-  // Shadow
   cx.save(); cx.translate(pos.x,pos.y); cx.scale(pos.s,pos.s*0.2);
   cx.fillStyle='rgba(0,0,0,0.5)';
   cx.beginPath(); cx.arc(0,0,sw*0.46,0,Math.PI*2); cx.fill(); cx.restore();
@@ -615,13 +602,11 @@ function drawHam() {
   drawPixels(ham,-sw/2,-sh,PX);
   cx.restore();
 
-  // Hat / crown
   const headTop=pos.y-sh*pos.s+bob*pos.s;
   const sc=pos.s*PX;
   if (S.items.crown)     drawCrown(pos.x,headTop,sc);
   else if (S.items.hat)  drawSunHat(pos.x,headTop,sc,S.facing);
 
-  // Labels
   cx.textAlign='center';
   const fs=Math.max(6,H*0.025);
   if (S.sleeping){
@@ -776,7 +761,7 @@ function act(a){
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SHOP  ── tabs, items, color pickers
+// SHOP
 // ═══════════════════════════════════════════════════════════════════════════
 let currentTab='items';
 
@@ -800,7 +785,6 @@ function switchTab(tab){
   document.getElementById('pane-'+tab).classList.add('active');
 }
 
-// ── Items pane ──
 function buildItemsPane(){
   const pane=document.getElementById('pane-items');
   pane.innerHTML='';
@@ -822,7 +806,6 @@ function buildItemsPane(){
   });
 }
 
-// ── Ham color pane ──
 function buildHamColorPane(){
   const pane=document.getElementById('pane-hamcol');
   pane.innerHTML='';
@@ -834,7 +817,6 @@ function buildHamColorPane(){
     const card=document.createElement('div');
     card.className='color-card'+(selected?' selected':'');
 
-    // Mini hamster preview
     const cv2=document.createElement('canvas'); cv2.width=32;cv2.height=32;
     cv2.style.imageRendering='pixelated'; cv2.className='color-preview';
     drawHamPreview(cv2.getContext('2d'),pal);
@@ -857,7 +839,6 @@ function buildHamColorPane(){
   pane.appendChild(grid);
 }
 
-// ── Room color pane ──
 function buildRoomColorPane(){
   const pane=document.getElementById('pane-roomcol');
   pane.innerHTML='';
@@ -869,7 +850,6 @@ function buildRoomColorPane(){
     const card=document.createElement('div');
     card.className='color-card'+(selected?' selected':'');
 
-    // Room swatch
     const cv3=document.createElement('canvas'); cv3.width=32;cv3.height=32;
     cv3.style.imageRendering='pixelated'; cv3.className='color-preview';
     drawRoomSwatch(cv3.getContext('2d'),rp);
@@ -892,7 +872,6 @@ function buildRoomColorPane(){
   pane.appendChild(grid);
 }
 
-// ── Preview renderers ──
 function drawHamPreview(c2d, pal){
   c2d.fillStyle='#0e180e'; c2d.fillRect(0,0,32,32);
   const PX=2;
@@ -913,20 +892,14 @@ function drawHamPreview(c2d, pal){
 
 function drawRoomSwatch(c2d, rp){
   const W=32,H=32;
-  // Ceiling
   c2d.fillStyle=rp.ceiling; c2d.beginPath(); c2d.moveTo(0,0); c2d.lineTo(W,0); c2d.lineTo(22,4); c2d.lineTo(10,4); c2d.closePath(); c2d.fill();
-  // Side walls
   c2d.fillStyle=rp.wallL; c2d.beginPath(); c2d.moveTo(0,0); c2d.lineTo(10,4); c2d.lineTo(10,12); c2d.lineTo(0,28); c2d.closePath(); c2d.fill();
   c2d.fillStyle=rp.wallR; c2d.beginPath(); c2d.moveTo(W,0); c2d.lineTo(22,4); c2d.lineTo(22,12); c2d.lineTo(W,28); c2d.closePath(); c2d.fill();
-  // Back wall
   c2d.fillStyle=rp.back; c2d.fillRect(10,4,12,8);
-  // Floor
   c2d.fillStyle=rp.floorA; c2d.beginPath(); c2d.moveTo(0,28); c2d.lineTo(10,12); c2d.lineTo(22,12); c2d.lineTo(W,28); c2d.closePath(); c2d.fill();
-  // Grid hint
   c2d.strokeStyle=rp.grid; c2d.lineWidth=0.7;
   c2d.beginPath(); c2d.moveTo(16,12); c2d.lineTo(16,28); c2d.stroke();
   c2d.beginPath(); c2d.moveTo(10,20); c2d.lineTo(22,20); c2d.stroke();
-  // Edge
   c2d.strokeStyle=rp.edges; c2d.lineWidth=0.8;
   c2d.beginPath(); c2d.moveTo(0,28); c2d.lineTo(10,12); c2d.lineTo(22,12); c2d.lineTo(W,28); c2d.stroke();
 }
