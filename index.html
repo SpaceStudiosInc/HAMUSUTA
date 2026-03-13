@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Hamusuta</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html, body {
+  width:100%; height:100%;
+  background:#0d0d0d;
+  display:flex; align-items:stretch; justify-content:center;
+  font-family:'Press Start 2P', monospace;
+  overflow:hidden;
+}
+
+/* Full-screen shell */
+.shell {
+  background:#1a1a1a;
+  border-left:4px solid #444;
+  border-right:4px solid #444;
+  border-top:4px solid #444;
+  border-bottom:6px solid #555;
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  max-width:700px;
+  padding:12px 12px 18px;
+  box-shadow:0 0 0 2px #222, 0 10px 40px #000;
+}
+
+.title {
+  text-align:center; font-size:clamp(5px,1.2vw,9px); color:#3a3a3a;
+  margin-bottom:10px; letter-spacing:4px; flex-shrink:0;
+}
+
+/* Screen fills all remaining vertical space */
+.screen {
+  background:#0b120b;
+  border:4px solid #2a2a2a;
+  border-radius:4px;
+  flex:1;
+  position:relative; overflow:hidden;
+  margin-bottom:14px;
+  box-shadow:inset 0 0 30px #00000099;
+  min-height:0;
+}
+.screen::after {
+  content:''; position:absolute; inset:0;
+  background:repeating-linear-gradient(0deg,#00000012 0,#00000012 1px,transparent 1px,transparent 3px);
+  pointer-events:none; z-index:10;
+}
+
+#canvas {
+  display:block;
+  width:100%; height:100%;
+  image-rendering:pixelated;
+}
+
+/* stat bars */
+.bars {
+  position:absolute; top:8px; left:8px; right:8px;
+  display:flex; flex-direction:column; gap:4px; z-index:5;
+}
+.bar-row { display:flex; align-items:center; gap:5px; }
+.bar-lbl { font-size:clamp(5px,1.1vw,8px); color:#2a4a2a; width:clamp(14px,3vw,22px); }
+.bar-track { flex:1; height:clamp(4px,1vh,8px); background:#091409; border:1px solid #1a3a1a; }
+.bar-fill  { height:100%; background:#3a8a3a; transition:width .4s; }
+.bar-fill.y { background:#a06010; }
+.bar-fill.r { background:#882020; }
+
+#ageDisp {
+  position:absolute; top:8px; right:8px;
+  font-size:clamp(5px,1vw,8px); color:#2a4a2a; z-index:6; text-align:right;
+}
+
+#msg {
+  position:absolute; bottom:7px; left:0; right:0;
+  text-align:center; font-size:clamp(6px,1.3vw,10px); color:#3a6a3a;
+  z-index:5; letter-spacing:1px;
+}
+
+/* ── SHOP PANEL ── */
+#shopPanel {
+  display:none; position:absolute; inset:0;
+  background:#080e08ee; z-index:20;
+  padding:12px 14px 10px;
+  flex-direction:column;
+}
+#shopPanel.open { display:flex; }
+.shop-title {
+  text-align:center; font-size:clamp(7px,1.5vw,12px); color:#4a8a4a;
+  border-bottom:1px solid #1a3a1a; padding-bottom:7px; margin-bottom:8px; flex-shrink:0;
+}
+.shop-age { font-size:clamp(5px,1vw,8px); color:#3a6a3a; text-align:center; margin-bottom:8px; flex-shrink:0; }
+.shop-list {
+  flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:8px;
+}
+.shop-item {
+  display:flex; align-items:center; gap:10px;
+  border:1px solid #1c3a1c; border-radius:3px;
+  padding:8px 10px; background:#0e180e; flex-shrink:0;
+}
+.shop-icon {
+  width:clamp(28px,5vw,44px); height:clamp(28px,5vw,44px); flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+}
+.shop-icon canvas { width:100%; height:100%; image-rendering:pixelated; }
+.shop-info { flex:1; min-width:0; }
+.shop-name { font-size:clamp(5px,1.1vw,9px); color:#5aaa5a; margin-bottom:4px; }
+.shop-desc { font-size:clamp(4px,0.9vw,7px); color:#2a5a2a; margin-bottom:4px; line-height:1.6; }
+.shop-cost { font-size:clamp(4px,0.9vw,7px); color:#4a7a4a; }
+.shop-btn {
+  font-family:'Press Start 2P',monospace; font-size:clamp(4px,0.9vw,7px);
+  background:#0a180a; border:1px solid #2a4a2a;
+  color:#3a6a3a; padding:6px 8px; cursor:pointer; border-radius:2px;
+  white-space:nowrap; flex-shrink:0;
+}
+.shop-btn:hover { background:#142814; color:#5aaa5a; border-color:#3a6a3a; }
+.shop-btn.owned { color:#1e3a1e; border-color:#1a2a1a; cursor:default; }
+.shop-btn.locked { color:#2a2a2a; border-color:#1c1c1c; cursor:default; }
+.shop-close {
+  font-family:'Press Start 2P',monospace; font-size:clamp(5px,1.1vw,9px);
+  background:#0e180e; border:1px solid #2a4a2a;
+  color:#3a6a3a; padding:7px 18px; cursor:pointer;
+  border-radius:2px; margin-top:10px; align-self:center; flex-shrink:0;
+}
+.shop-close:hover { background:#142814; }
+
+/* ── BUTTONS ── */
+.btns { display:flex; justify-content:center; gap:clamp(8px,2vw,20px); margin-bottom:10px; flex-shrink:0; }
+.btn {
+  background:#1c1c1c; border:3px solid #363636; border-radius:50%;
+  width:clamp(56px,11vw,80px); height:clamp(56px,11vw,80px);
+  color:#555; font-family:'Press Start 2P',monospace;
+  cursor:pointer; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:3px;
+  user-select:none; transition:background .1s;
+}
+.btn .lbl { font-size:clamp(5px,1.1vw,8px); color:#3a7a3a; font-weight:bold; }
+.btn:hover { background:#262626; border-color:#505050; }
+.btn:active { transform:scale(.93); }
+.btn:disabled { opacity:.22; cursor:default; }
+
+.btns2 { display:flex; justify-content:center; gap:clamp(5px,1.2vw,12px); flex-shrink:0; }
+.sm {
+  background:#161616; border:2px solid #2a2a2a; border-radius:3px;
+  color:#3a5a3a; font-family:'Press Start 2P',monospace; font-size:clamp(5px,1vw,8px);
+  padding:clamp(5px,1vh,9px) clamp(7px,1.5vw,14px); cursor:pointer; transition:color .1s;
+}
+.sm:hover { color:#6a8a6a; border-color:#3a5a3a; }
+.sm:active { transform:scale(.94); }
+#btnNew { display:none; }
+
+.shop-list::-webkit-scrollbar { width:4px; }
+.shop-list::-webkit-scrollbar-track { background:#080e08; }
+.shop-list::-webkit-scrollbar-thumb { background:#2a4a2a; border-radius:2px; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="title">HAMUSUTA  *  HAMSTER</div>
+
+  <div class="screen" id="screenEl">
+    <div class="bars">
+      <div class="bar-row"><span class="bar-lbl">HNG</span><div class="bar-track"><div class="bar-fill" id="bH" style="width:80%"></div></div></div>
+      <div class="bar-row"><span class="bar-lbl">JOY</span><div class="bar-track"><div class="bar-fill" id="bJ" style="width:80%"></div></div></div>
+      <div class="bar-row"><span class="bar-lbl">NRG</span><div class="bar-track"><div class="bar-fill" id="bE" style="width:80%"></div></div></div>
+    </div>
+    <div id="ageDisp">D:0.0</div>
+    <canvas id="canvas"></canvas>
+    <div id="msg">HELLO!</div>
+
+    <div id="shopPanel">
+      <div class="shop-title">HAM  SHOP</div>
+      <div class="shop-age" id="shopAgeLbl">AGE: 0.0 DAYS</div>
+      <div class="shop-list" id="shopList"></div>
+      <button class="shop-close" onclick="closeShop()">CLOSE</button>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="btn" id="bFeed"  onclick="act('feed')"> <span class="lbl">FEED</span></button>
+    <button class="btn" id="bPlay"  onclick="act('play')"> <span class="lbl">PLAY</span></button>
+    <button class="btn" id="bSleep" onclick="act('sleep')"><span class="lbl">SLEEP</span></button>
+  </div>
+  <div class="btns2">
+    <button class="sm" onclick="act('med')">MED</button>
+    <button class="sm" onclick="act('clean')">CLEAN</button>
+    <button class="sm" onclick="openShop()">SHOP</button>
+    <button class="sm" id="btnNew" onclick="newHam()">NEW</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Canvas – resizes to match its CSS-rendered size every frame
+// ─────────────────────────────────────────────────────────────────────────────
+const cv  = document.getElementById('canvas');
+const cx  = cv.getContext('2d');
+let W = 0, H = 0;
+
+function syncCanvas() {
+  const rect = cv.getBoundingClientRect();
+  const dpr  = window.devicePixelRatio || 1;
+  const nw   = Math.floor(rect.width  * dpr);
+  const nh   = Math.floor(rect.height * dpr);
+  if (nw !== cv.width || nh !== cv.height) {
+    cv.width  = nw;
+    cv.height = nh;
+    W = nw; H = nh;
+  } else {
+    W = cv.width; H = cv.height;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Room geometry (computed from W/H each frame)
+// ─────────────────────────────────────────────────────────────────────────────
+function room() {
+  return {
+    BL: W*0.14, BR: W*0.86,
+    BT: H*0.05, BB: H*0.28,
+    FF: H*0.945,
+  };
+}
+
+function toScreen(rx, rz) {
+  const {BL,BR,BT,BB,FF} = room();
+  const sy = BB + (FF-BB)*rz;
+  const lx = BL + (0 -BL)*rz;
+  const ex = BR + (W -BR)*rz;
+  const sx = lx + rx*(ex-lx);
+  const sc = 0.18 + 0.82*rz;
+  return {x:sx, y:sy, s:sc};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pixel size scales with canvas height
+// ─────────────────────────────────────────────────────────────────────────────
+function px() { return Math.max(2, Math.round(H / 90)); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Palette
+// ─────────────────────────────────────────────────────────────────────────────
+const P = {
+  body:'#c8844a', belly:'#e8c090',
+  ear:'#b87040',  earin:'#cc8888',
+  eye:'#101010',  shine:'#ffffff',
+  nose:'#d08888', dark:'#884422',
+  poop:'#5a3a18', zzz:'#406060',
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shop catalog
+// ─────────────────────────────────────────────────────────────────────────────
+const SHOP = [
+  { id:'hat',   name:'SUN HAT',     days:2,  desc:'A straw hat. Very stylish.' },
+  { id:'bed',   name:'COZY BED',    days:5,  desc:'Sleeps here, not the floor.' },
+  { id:'house', name:'MINI HOUSE',  days:10, desc:'Tiny home in the corner.' },
+  { id:'crown', name:'ROYAL CROWN', days:15, desc:'Only for the fanciest hams.' },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let S;
+function freshState() {
+  return {
+    hunger:90, happy:90, energy:90,
+    alive:true, sleeping:false, sick:false,
+    birthTime: Date.now(), lastSaveTime: Date.now(),
+    poops:[],
+    rx:0.5, rz:0.55, tx:0.5, tz:0.55,
+    facing:1, moving:false, moveTimer:0, bounce:0,
+    items:{ hat:false, bed:false, house:false, crown:false },
+  };
+}
+function getAge() { return (Date.now()-S.birthTime)/(1000*60*60*24); }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Persistence
+// ─────────────────────────────────────────────────────────────────────────────
+const SAVE_KEY = 'hamusuta_v4';
+function saveState() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({...S, lastSaveTime:Date.now()}));
+  } catch(e){}
+}
+async function loadState() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    S = JSON.parse(raw);
+    const elapsed = Math.min((Date.now()-S.lastSaveTime)/60000, 72*60);
+    if (elapsed>0) applyDecay(elapsed);
+    S.lastSaveTime = Date.now();
+    return true;
+  } catch(e){ return false; }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Decay  (~22h hunger, ~28h happy, ~36h energy to empty)
+// ─────────────────────────────────────────────────────────────────────────────
+const DECAY = { hunger:0.0758, happy:0.0595, energy:0.0463 };
+function applyDecay(mins) {
+  if (!S.alive) return;
+  if (S.sleeping) {
+    S.energy = Math.min(100, S.energy + mins*0.14);
+    S.hunger = Math.max(0,   S.hunger - mins*0.035);
+    if (S.energy>=100) S.sleeping=false;
+  } else {
+    S.hunger = Math.max(0, S.hunger-mins*DECAY.hunger);
+    S.happy  = Math.max(0, S.happy -mins*DECAY.happy);
+    S.energy = Math.max(0, S.energy-mins*DECAY.energy);
+  }
+  if (S.hunger<=0 && S.happy<=0) die();
+}
+
+function die() {
+  S.alive=false; S.moving=false;
+  ['bFeed','bPlay','bSleep'].forEach(id=>document.getElementById(id).disabled=true);
+  document.getElementById('btnNew').style.display='inline-block';
+}
+
+let lastDecayMs = Date.now();
+function checkDecay() {
+  const mins = (Date.now()-lastDecayMs)/60000;
+  if (mins>=1) {
+    const whole=Math.floor(mins);
+    lastDecayMs += whole*60000;
+    applyDecay(whole);
+    updateBars();
+    saveState();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Draw room
+// ─────────────────────────────────────────────────────────────────────────────
+function drawRoom() {
+  const {BL,BR,BT,BB,FF} = room();
+  const PX = px();
+
+  // Ceiling
+  cx.fillStyle='#0e160e';
+  cx.beginPath(); cx.moveTo(0,0); cx.lineTo(W,0); cx.lineTo(BR,BT); cx.lineTo(BL,BT); cx.closePath(); cx.fill();
+
+  // Side walls
+  cx.fillStyle='#111811';
+  cx.beginPath(); cx.moveTo(0,0); cx.lineTo(BL,BT); cx.lineTo(BL,BB); cx.lineTo(0,FF); cx.closePath(); cx.fill();
+  cx.fillStyle='#121912';
+  cx.beginPath(); cx.moveTo(W,0); cx.lineTo(BR,BT); cx.lineTo(BR,BB); cx.lineTo(W,FF); cx.closePath(); cx.fill();
+
+  // Back wall
+  cx.fillStyle='#14201a';
+  cx.fillRect(BL,BT,BR-BL,BB-BT);
+  const bwH = BB-BT;
+  for (let y=BT+bwH*0.15; y<BB-2; y+=bwH*0.12) { cx.fillStyle='#162318'; cx.fillRect(BL,y,BR-BL,1); }
+
+  // Wheel
+  const wx=W/2, wy=BT+(BB-BT)*0.55, wr=(BB-BT)*0.45;
+  cx.strokeStyle='#203c28'; cx.lineWidth=Math.max(1.5,H/200);
+  cx.beginPath(); cx.arc(wx,wy,wr,0,Math.PI*2); cx.stroke();
+  cx.lineWidth=Math.max(0.8,H/350);
+  for (let i=0;i<6;i++){
+    const a=i*Math.PI/3;
+    cx.beginPath(); cx.moveTo(wx+Math.cos(a)*wr,wy+Math.sin(a)*wr);
+    cx.lineTo(wx+Math.cos(a+Math.PI)*wr,wy+Math.sin(a+Math.PI)*wr); cx.stroke();
+  }
+  cx.fillStyle='#203c28';
+  cx.beginPath(); cx.arc(wx,wy,Math.max(2,H/80),0,Math.PI*2); cx.fill();
+
+  // Water bottle (right back wall)
+  const bwW=BR-BL;
+  const bx=BL+bwW*0.84, by=BT+bwH*0.18;
+  const bw=bwW*0.05, bh=bwH*0.55;
+  cx.fillStyle='#183535'; cx.fillRect(bx,by,bw,bh);
+  cx.fillStyle='#1e4c4c'; cx.fillRect(bx+1,by+bh*0.45,bw-2,bh*0.5);
+  cx.fillStyle='#183535'; cx.fillRect(bx+bw*0.25,by-bh*0.18,bw*0.5,bh*0.2);
+  cx.strokeStyle='#225050'; cx.lineWidth=0.8;
+  cx.strokeRect(bx,by,bw,bh); cx.strokeRect(bx+bw*0.25,by-bh*0.18,bw*0.5,bh*0.2);
+
+  // Food dish (left back wall)
+  const dx=BL+bwW*0.13, dy=BB-3;
+  const dw=bwW*0.09, dh=(BB-BT)*0.14;
+  cx.fillStyle='#282010';
+  cx.beginPath(); cx.ellipse(dx,dy,dw,dh,0,0,Math.PI); cx.fill();
+  cx.strokeStyle='#382f18'; cx.lineWidth=0.8;
+  cx.beginPath(); cx.ellipse(dx,dy,dw,dh,0,0,Math.PI*2); cx.stroke();
+  cx.fillStyle='#c8844a';
+  for(let i=0;i<4;i++) cx.fillRect(dx-dw*0.55+i*dw*0.38, dy-dh*0.55, dw*0.25, dh*0.45);
+
+  // Mini house on back wall
+  if (S && S.items && S.items.house) {
+    const hx=BL+bwW*0.65, hy=BB-2;
+    const hw=bwW*0.12, hh=(BB-BT)*0.7;
+    cx.fillStyle='#3a2810';
+    cx.beginPath(); cx.moveTo(hx,hy-hh); cx.lineTo(hx-hw/2,hy-hh*0.45); cx.lineTo(hx+hw/2,hy-hh*0.45); cx.closePath(); cx.fill();
+    cx.fillStyle='#c8a870'; cx.fillRect(hx-hw/2,hy-hh*0.45,hw,hh*0.45);
+    cx.fillStyle='#5a3a18';
+    cx.fillRect(hx-hw*0.13,hy-hh*0.15,hw*0.27,hh*0.15);
+    cx.beginPath(); cx.arc(hx,hy-hh*0.15,hw*0.135,Math.PI,0); cx.fill();
+    cx.fillStyle='#304848'; cx.fillRect(hx-hw*0.42,hy-hh*0.35,hw*0.22,hh*0.16);
+    cx.strokeStyle='#406060'; cx.lineWidth=0.5; cx.strokeRect(hx-hw*0.42,hy-hh*0.35,hw*0.22,hh*0.16);
+  }
+
+  // Bed on floor (lower left)
+  if (S && S.items && S.items.bed) {
+    const bedPos = toScreen(0.11, 0.9);
+    const bs = bedPos.s * H * 0.09;
+    cx.save(); cx.translate(bedPos.x, bedPos.y);
+    cx.fillStyle='#5a3018'; cx.fillRect(-bs*2.2,-bs*0.6,bs*4.4,bs);
+    cx.fillStyle='#d0c090'; cx.fillRect(-bs*2,-bs*1.5,bs*4,bs);
+    cx.fillStyle='#ece4c8'; cx.fillRect(-bs*1.9,-bs*1.7,bs*1.6,bs*0.5);
+    cx.fillStyle='#6a6aaa'; cx.fillRect(-bs*0.1,-bs*1.65,bs*1.8,bs*0.45);
+    cx.fillStyle='#6a3a20'; cx.fillRect(-bs*2.4,-bs*1.7,bs*0.5,bs*1.1);
+    cx.restore();
+  }
+
+  // Floor strips
+  for(let i=0;i<10;i++){
+    const z1=i/10,z2=(i+1)/10;
+    const p0=toScreen(0,z1),p1=toScreen(1,z1),p2=toScreen(1,z2),p3=toScreen(0,z2);
+    cx.fillStyle=i%2===0?'#172817':'#1a2c1a';
+    cx.beginPath(); cx.moveTo(p0.x,p0.y); cx.lineTo(p1.x,p1.y); cx.lineTo(p2.x,p2.y); cx.lineTo(p3.x,p3.y); cx.closePath(); cx.fill();
+  }
+
+  // Floor grid
+  cx.strokeStyle='rgba(36,64,40,0.45)'; cx.lineWidth=0.7;
+  for(let i=0;i<=10;i++){
+    const b=toScreen(i/10,0),f=toScreen(i/10,1);
+    cx.beginPath(); cx.moveTo(b.x,b.y); cx.lineTo(f.x,f.y); cx.stroke();
+  }
+  [0.18,0.35,0.52,0.68,0.83].forEach(rz=>{
+    const L=toScreen(0,rz),R=toScreen(1,rz);
+    cx.beginPath(); cx.moveTo(L.x,L.y); cx.lineTo(R.x,R.y); cx.stroke();
+  });
+
+  // Room edges
+  cx.strokeStyle='#1e3820'; cx.lineWidth=1.5;
+  cx.beginPath();
+  cx.moveTo(0,FF); cx.lineTo(BL,BB); cx.lineTo(BR,BB); cx.lineTo(W,FF);
+  cx.moveTo(0,0); cx.lineTo(BL,BT);
+  cx.moveTo(W,0); cx.lineTo(BR,BT);
+  cx.stroke();
+  cx.strokeStyle='#1c2e1e'; cx.lineWidth=1;
+  cx.strokeRect(BL,BT,BR-BL,BB-BT);
+  cx.strokeStyle='#223d24'; cx.lineWidth=1.2;
+  cx.beginPath(); cx.moveTo(0,FF); cx.lineTo(W,FF); cx.stroke();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sprite builders (PX-scaled pixels)
+// ─────────────────────────────────────────────────────────────────────────────
+function makeHam(alive, sleeping, sick){
+  const b=P.body,w=P.belly,e=P.ear,ei=P.earin,
+        ey=sick?'#556655':P.eye,n=P.nose,s=P.shine,d=P.dark;
+  if(!alive) return [
+    [1,0,'#282828'],[2,0,'#282828'],[9,0,'#282828'],[10,0,'#282828'],
+    [2,1,'#303030'],[3,1,'#303030'],[4,1,'#303030'],[5,1,'#303030'],[6,1,'#303030'],[7,1,'#303030'],[8,1,'#303030'],[9,1,'#303030'],
+    [1,2,'#303030'],[2,2,'#303030'],[3,2,'#303030'],[4,2,'#303030'],[5,2,'#303030'],[6,2,'#303030'],[7,2,'#303030'],[8,2,'#303030'],[9,2,'#303030'],[10,2,'#303030'],
+    [2,3,'#505050'],[4,3,'#505050'],[3,3,'#380038'],[8,3,'#505050'],[10,3,'#505050'],[9,3,'#380038'],
+    [1,3,'#303030'],[5,3,'#303030'],[6,3,'#303030'],[7,3,'#303030'],
+    [1,4,'#303030'],[2,4,'#303030'],[3,4,'#505050'],[4,4,'#303030'],[5,4,'#303030'],[6,4,'#303030'],[7,4,'#303030'],[8,4,'#303030'],[9,4,'#505050'],[10,4,'#303030'],
+    [2,5,'#383838'],[3,5,'#303030'],[4,5,'#404040'],[5,5,'#404040'],[6,5,'#404040'],[7,5,'#404040'],[8,5,'#303030'],[9,5,'#383838'],
+    [2,6,'#383838'],[3,6,'#404040'],[4,6,'#404040'],[5,6,'#404040'],[6,6,'#404040'],[7,6,'#404040'],[8,6,'#383838'],
+    [3,7,'#282828'],[4,7,'#282828'],[8,7,'#282828'],[9,7,'#282828'],
+  ];
+  if(sleeping) return [
+    [1,0,e],[2,0,e],[9,0,e],[10,0,e],[1,1,e],[2,1,ei],[9,1,e],[10,1,ei],
+    [2,2,b],[3,2,b],[4,2,b],[5,2,b],[6,2,b],[7,2,b],[8,2,b],[9,2,b],
+    [1,3,b],[2,3,b],[3,3,b],[4,3,b],[5,3,b],[6,3,b],[7,3,b],[8,3,b],[9,3,b],[10,3,b],
+    [1,4,b],[2,4,b],[3,4,d],[4,4,d],[5,4,b],[6,4,b],[7,4,b],[8,4,d],[9,4,d],[10,4,b],
+    [1,5,b],[2,5,b],[3,5,b],[4,5,n],[5,5,n],[6,5,b],[7,5,b],[8,5,b],[9,5,b],[10,5,b],
+    [2,6,b],[3,6,b],[4,6,w],[5,6,w],[6,6,w],[7,6,w],[8,6,b],[9,6,b],
+    [1,7,b],[2,7,b],[3,7,w],[4,7,w],[5,7,w],[6,7,w],[7,7,w],[8,7,w],[9,7,b],[10,7,b],
+    [2,8,b],[3,8,b],[4,8,b],[5,8,b],[6,8,b],[7,8,b],[8,8,b],[9,8,b],
+  ];
+  return [
+    [1,0,e],[2,0,e],[9,0,e],[10,0,e],[1,1,e],[2,1,ei],[9,1,e],[10,1,ei],
+    [2,2,b],[3,2,b],[4,2,b],[5,2,b],[6,2,b],[7,2,b],[8,2,b],[9,2,b],
+    [1,3,b],[2,3,b],[3,3,b],[4,3,b],[5,3,b],[6,3,b],[7,3,b],[8,3,b],[9,3,b],[10,3,b],
+    [3,3,s],[8,3,s],
+    [1,4,b],[2,4,b],[3,4,ey],[4,4,b],[5,4,b],[6,4,b],[7,4,b],[8,4,ey],[9,4,b],[10,4,b],
+    [1,5,b],[2,5,b],[3,5,b],[4,5,n],[5,5,n],[6,5,b],[7,5,b],[8,5,b],[9,5,b],[10,5,b],
+    [2,6,b],[3,6,b],[4,6,w],[5,6,w],[6,6,w],[7,6,w],[8,6,b],[9,6,b],
+    [1,7,b],[2,7,b],[3,7,w],[4,7,w],[5,7,w],[6,7,w],[7,7,w],[8,7,w],[9,7,b],[10,7,b],
+    [1,8,b],[2,8,b],[3,8,w],[4,8,w],[5,8,w],[6,8,w],[7,8,w],[8,8,w],[9,8,b],[10,8,b],
+    [2,9,b],[3,9,b],[4,9,b],[5,9,b],[6,9,b],[7,9,b],[8,9,b],[9,9,b],
+    [3,10,b],[4,10,b],[7,10,b],[8,10,b],
+  ];
+}
+
+const POOP_PIX=[
+  [1,0,P.poop],[2,0,P.poop],
+  [0,1,P.poop],[1,1,'#7a5020'],[2,1,'#7a5020'],[3,1,P.poop],
+  [0,2,P.poop],[1,2,P.poop],[2,2,P.poop],[3,2,P.poop],
+  [1,3,P.poop],[2,3,P.poop],
+];
+
+function drawPixels(pixels, ox, oy, PX){
+  pixels.forEach(([c,r,col])=>{
+    cx.fillStyle=col;
+    cx.fillRect(ox+c*PX, oy+r*PX, PX, PX);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hamster drawing
+// ─────────────────────────────────────────────────────────────────────────────
+function drawHam(){
+  const pos   = toScreen(S.rx, S.rz);
+  const PX    = px();
+  const ham   = makeHam(S.alive, S.sleeping, S.sick);
+  const sw    = 11*PX, sh = 11*PX;
+
+  // Shadow
+  cx.save(); cx.translate(pos.x,pos.y); cx.scale(pos.s, pos.s*0.2);
+  cx.fillStyle='rgba(0,0,0,0.5)';
+  cx.beginPath(); cx.arc(0,0,sw*0.46,0,Math.PI*2); cx.fill();
+  cx.restore();
+
+  const bob = (S.moving && S.bounce%2===0)?-1:0;
+  cx.save();
+  cx.translate(pos.x, pos.y+bob*pos.s);
+  cx.scale(S.facing*pos.s, pos.s);
+  drawPixels(ham, -sw/2, -sh, PX);
+  cx.restore();
+
+  // Hat / crown
+  const headTop = pos.y - sh*pos.s + bob*pos.s;
+  if (S.items && S.items.crown) drawCrown(pos.x, headTop, pos.s*PX);
+  else if (S.items && S.items.hat) drawSunHat(pos.x, headTop, pos.s*PX, S.facing);
+
+  // Labels
+  cx.textAlign='center';
+  const fs = Math.max(6, H*0.025);
+  if (S.sleeping){
+    cx.fillStyle=P.zzz; cx.font=fs+'px "Press Start 2P"';
+    cx.fillText('z z z', pos.x, headTop-fs*0.8);
+  } else if (S.sick){
+    cx.fillStyle='#807228'; cx.font=(fs*0.85)+'px "Press Start 2P"';
+    cx.fillText('SICK', pos.x, headTop-fs*0.5);
+  }
+  cx.textAlign='left';
+}
+
+function drawSunHat(cx_, cy_, sc, facing){
+  const u = sc*0.55;
+  cx.save(); cx.translate(cx_,cy_); cx.scale(facing,1);
+  cx.fillStyle='#c8a428'; cx.fillRect(-u*5,-u*1.2,u*10,u*1.2);
+  cx.fillStyle='#d4b030'; cx.fillRect(-u*3,-u*2.8,u*6,u*1.6);
+  cx.fillStyle='#8a5020'; cx.fillRect(-u*3,-u*1.35,u*6,u*0.45);
+  cx.restore();
+}
+
+function drawCrown(cx_, cy_, sc){
+  const u = sc*0.5;
+  cx.save(); cx.translate(cx_,cy_);
+  cx.fillStyle='#d4a010';
+  cx.fillRect(-u*5,-u*2,u*10,u*2);
+  cx.fillRect(-u*4.5,-u*5.5,u*2.2,u*3.5);
+  cx.fillRect(-u*1.1,-u*6.5,u*2.2,u*4.5);
+  cx.fillRect( u*2.3,-u*5.5,u*2.2,u*3.5);
+  cx.fillStyle='#dd2222'; cx.fillRect(-u*4,-u*5,u*1.4,u*1.4);
+  cx.fillStyle='#2255dd'; cx.fillRect(-u*0.7,-u*6,u*1.4,u*1.4);
+  cx.fillStyle='#22aa44'; cx.fillRect( u*2.7,-u*5,u*1.4,u*1.4);
+  cx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Full render
+// ─────────────────────────────────────────────────────────────────────────────
+function render(){
+  syncCanvas();
+  if (!W||!H) return;
+  cx.clearRect(0,0,W,H);
+  drawRoom();
+
+  const items=S.poops.map(p=>({rz:p.rz,type:'poop',d:p}));
+  items.push({rz:S.rz,type:'ham'});
+  items.sort((a,b)=>a.rz-b.rz);
+  const PX=px();
+
+  items.forEach(item=>{
+    if(item.type==='poop'){
+      const pos=toScreen(item.d.rx,item.d.rz);
+      cx.save(); cx.translate(pos.x,pos.y); cx.scale(pos.s*0.55,pos.s*0.55);
+      drawPixels(POOP_PIX,-2*PX,-4*PX,PX); cx.restore();
+    } else {
+      drawHam();
+    }
+  });
+
+  document.getElementById('ageDisp').textContent='D:'+getAge().toFixed(1);
+
+  if(!S.alive){
+    cx.fillStyle='rgba(0,0,0,0.65)'; cx.fillRect(0,0,W,H);
+    const fs=Math.max(9,H*0.035);
+    cx.fillStyle='#882222'; cx.font=fs+'px "Press Start 2P"'; cx.textAlign='center';
+    cx.fillText('GAME OVER',W/2,H/2-fs*0.8);
+    cx.fillStyle='#3a3a3a'; cx.font=(fs*0.65)+'px "Press Start 2P"';
+    cx.fillText('AGE: '+getAge().toFixed(1)+' DAYS',W/2,H/2+fs*0.8);
+    cx.textAlign='left';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bars & messages
+// ─────────────────────────────────────────────────────────────────────────────
+function updateBars(){
+  [['H',S.hunger],['J',S.happy],['E',S.energy]].forEach(([k,v])=>{
+    const el=document.getElementById('b'+k);
+    el.style.width=v+'%';
+    el.className='bar-fill'+(v<20?' r':v<40?' y':'');
+  });
+}
+function setMsg(t){document.getElementById('msg').textContent=t;}
+let msgT;
+function autoMsg(){
+  clearTimeout(msgT);
+  msgT=setTimeout(()=>{
+    if(!S.alive)         setMsg('GAME OVER');
+    else if(S.sleeping)  setMsg('ZZZ...');
+    else if(S.sick)      setMsg('IM SICK...');
+    else if(S.hunger<25) setMsg('IM HUNGRY!');
+    else if(S.happy<25)  setMsg('PLAY WITH ME');
+    else if(S.energy<25) setMsg('SO TIRED...');
+    else setMsg(['HAPPY :)','FEELS GOOD','CONTENT','HI!!'][0|Math.random()*4]);
+  },1500);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Animation loop
+// ─────────────────────────────────────────────────────────────────────────────
+let rafId, lastMoveMs=0;
+function loop(ts){
+  rafId=requestAnimationFrame(loop);
+  if(!S||!S.alive){render();return;}
+  checkDecay();
+  if(ts-lastMoveMs>=260){
+    lastMoveMs=ts; S.bounce++;
+    if(!S.sleeping){
+      S.moveTimer=Math.max(0,S.moveTimer-1);
+      const near=Math.abs(S.rx-S.tx)<0.04&&Math.abs(S.rz-S.tz)<0.04;
+      if(S.moveTimer===0||near){
+        S.tx=0.1+Math.random()*0.8;
+        S.tz=0.1+Math.random()*0.8;
+        if(S.items&&S.items.bed&&S.sleeping){S.tx=0.11;S.tz=0.9;}
+        S.moveTimer=14+(0|Math.random()*30);
+      }
+      const dx=S.tx-S.rx,dz=S.tz-S.rz;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      const spd=0.009+(S.energy/100)*0.009;
+      if(dist>0.03){
+        S.rx=Math.max(0.04,Math.min(0.96,S.rx+(dx/dist)*spd));
+        S.rz=Math.max(0.04,Math.min(0.96,S.rz+(dz/dist)*spd));
+        S.facing=dx>0?1:-1; S.moving=true;
+      } else { S.moving=false; }
+      // Poop
+      if(S.poops.length<3&&Math.random()<0.003)
+        S.poops.push({rx:0.15+Math.random()*0.7,rz:0.15+Math.random()*0.7});
+      if(S.poops.length>0) S.happy=Math.max(0,S.happy-S.poops.length*0.005);
+      if(!S.sick&&(S.hunger<10||S.poops.length>=3)&&Math.random()<0.001) S.sick=true;
+    }
+  }
+  render();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Actions
+// ─────────────────────────────────────────────────────────────────────────────
+function act(a){
+  if(!S.alive)return;
+  if(a==='feed'){
+    if(S.sleeping){setMsg('...ZZZ...');return;}
+    S.hunger=Math.min(100,S.hunger+30);
+    S.happy=Math.min(100,S.happy+5);
+    setMsg('NOM NOM!');
+    S.tx=0.15;S.tz=0.08;S.moveTimer=6;
+  } else if(a==='play'){
+    if(S.sleeping){setMsg('ZZZ!');return;}
+    if(S.energy<12){setMsg('TOO TIRED!');return;}
+    S.happy=Math.min(100,S.happy+26);
+    S.energy=Math.max(0,S.energy-14);
+    S.hunger=Math.max(0,S.hunger-8);
+    setMsg('WHEEE!!');
+    S.tx=0.15+Math.random()*0.7;S.tz=0.15+Math.random()*0.7;S.moveTimer=4;
+  } else if(a==='sleep'){
+    S.sleeping=!S.sleeping;
+    if(S.sleeping&&S.items&&S.items.bed){S.tx=0.11;S.tz=0.9;S.moveTimer=3;}
+    setMsg(S.sleeping?'ZZZ...':'AWAKE!');
+  } else if(a==='med'){
+    if(!S.sick){setMsg('NOT SICK!');return;}
+    S.sick=false;S.happy=Math.min(100,S.happy+15);setMsg('ALL BETTER!');
+  } else if(a==='clean'){
+    if(S.poops.length===0){setMsg('ALREADY CLEAN');return;}
+    S.poops=[];S.happy=Math.min(100,S.happy+12);setMsg('SO FRESH!');
+  }
+  updateBars();saveState();autoMsg();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Shop
+// ─────────────────────────────────────────────────────────────────────────────
+function openShop(){
+  const age=getAge();
+  document.getElementById('shopAgeLbl').textContent='AGE: '+age.toFixed(1)+' DAYS';
+  const list=document.getElementById('shopList');
+  list.innerHTML='';
+  SHOP.forEach(item=>{
+    const owned=S.items[item.id];
+    const canBuy=age>=item.days;
+    const div=document.createElement('div'); div.className='shop-item';
+    const ic=document.createElement('canvas'); ic.width=44; ic.height=44; ic.style.imageRendering='pixelated';
+    drawShopIcon(ic.getContext('2d'),item.id);
+    const iconDiv=document.createElement('div'); iconDiv.className='shop-icon'; iconDiv.appendChild(ic);
+    const info=document.createElement('div'); info.className='shop-info';
+    info.innerHTML=`<div class="shop-name">${item.name}</div><div class="shop-desc">${item.desc}</div><div class="shop-cost">UNLOCK AT DAY ${item.days}</div>`;
+    const btn=document.createElement('button');
+    btn.className='shop-btn'+(owned?' owned':canBuy?'':' locked');
+    btn.textContent=owned?'OWNED':canBuy?'GET':'LOCKED';
+    if(!owned&&canBuy) btn.onclick=()=>buyItem(item.id);
+    div.appendChild(iconDiv); div.appendChild(info); div.appendChild(btn);
+    list.appendChild(div);
+  });
+  document.getElementById('shopPanel').classList.add('open');
+}
+function closeShop(){ document.getElementById('shopPanel').classList.remove('open'); }
+function buyItem(id){
+  S.items[id]=true;
+  setMsg(SHOP.find(x=>x.id===id).name+'!');
+  saveState(); closeShop(); openShop(); autoMsg();
+
+}
+
+function drawShopIcon(c2d,id){
+  c2d.fillStyle='#0e180e'; c2d.fillRect(0,0,44,44);
+  if(id==='hat'){
+    c2d.fillStyle='#c8a428'; c2d.fillRect(6,28,32,6);
+    c2d.fillStyle='#d4b030'; c2d.fillRect(14,16,16,12);
+    c2d.fillStyle='#8a5020'; c2d.fillRect(14,27,16,3);
+  } else if(id==='bed'){
+    c2d.fillStyle='#5a3018'; c2d.fillRect(6,28,32,8);
+    c2d.fillStyle='#d0c090'; c2d.fillRect(8,20,28,9);
+    c2d.fillStyle='#ece4c8'; c2d.fillRect(9,17,11,5);
+    c2d.fillStyle='#6a6aaa'; c2d.fillRect(22,18,12,5);
+    c2d.fillStyle='#6a3a20'; c2d.fillRect(6,17,4,11);
+  } else if(id==='house'){
+    c2d.fillStyle='#3a2810'; c2d.beginPath(); c2d.moveTo(22,6); c2d.lineTo(4,20); c2d.lineTo(40,20); c2d.closePath(); c2d.fill();
+    c2d.fillStyle='#c8a870'; c2d.fillRect(6,20,32,18);
+    c2d.fillStyle='#5a3a18'; c2d.fillRect(16,28,12,10);
+    c2d.beginPath(); c2d.arc(22,28,6,Math.PI,0); c2d.fill();
+    c2d.fillStyle='#304848'; c2d.fillRect(8,23,9,7);
+    c2d.strokeStyle='#406060'; c2d.lineWidth=0.8; c2d.strokeRect(8,23,9,7);
+  } else if(id==='crown'){
+    c2d.fillStyle='#d4a010';
+    c2d.fillRect(6,30,32,8);
+    c2d.fillRect(8,18,7,12); c2d.fillRect(18,14,8,16); c2d.fillRect(29,18,7,12);
+    c2d.fillStyle='#dd2222'; c2d.fillRect(10,20,4,4);
+    c2d.fillStyle='#2255dd'; c2d.fillRect(20,16,4,4);
+    c2d.fillStyle='#22aa44'; c2d.fillRect(31,20,4,4);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Init / new game
+// ─────────────────────────────────────────────────────────────────────────────
+function startLoop(){
+  cancelAnimationFrame(rafId);
+  lastDecayMs=Date.now();
+  if(!S.alive){
+    ['bFeed','bPlay','bSleep'].forEach(id=>document.getElementById(id).disabled=true);
+    document.getElementById('btnNew').style.display='inline-block';
+  } else {
+    ['bFeed','bPlay','bSleep'].forEach(id=>document.getElementById(id).disabled=false);
+    document.getElementById('btnNew').style.display='none';
+  }
+  updateBars(); autoMsg();
+  requestAnimationFrame(loop);
+}
+
+function newHam(){
+  cancelAnimationFrame(rafId);
+  S=freshState(); saveState();
+  ['bFeed','bPlay','bSleep'].forEach(id=>document.getElementById(id).disabled=false);
+  document.getElementById('btnNew').style.display='none';
+  lastDecayMs=Date.now(); updateBars(); setMsg('HELLO!');
+  requestAnimationFrame(loop);
+}
+
+function init(){
+  S=freshState();
+  const loaded=loadState();
+  if(!loaded) S=freshState();
+  startLoop();
+  setMsg(loaded?'WELCOME BACK!':'HELLO!');
+}
+
+window.addEventListener('resize', ()=>{ syncCanvas(); });
+init();
+</script>
+</body>
+</html>
